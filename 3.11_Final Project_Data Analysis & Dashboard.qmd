@@ -1,0 +1,587 @@
+---
+title: "AI Innovation Efficiency Dashboard"
+author: "Duofei Cui, Carol Zeng"
+format:
+  dashboard:
+    theme: vapor
+    highlight-style: github-dark
+    orientation: rows
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show code"
+    expandable: false
+pages:
+  - title: "Overview"
+  - title: "Data Context"
+  - title: "RQ1"
+  - title: "RQ2"
+  - title: "RQ3"
+  - title: "Group Info"
+---
+# Research Questions
+
+**Overview**
+
+In the current global economy, Artificial Intelligence (AI) has become a primary driver of industrial transformation. According to the 2024 AI Index Report from Stanford University, corporate investment in AI has reached a critical juncture where the scale of spending does not always guarantee a proportional output in innovation. This project explores how corporate R&D investment translates into tangible AI outcomes, specifically through patent filings, which serve as a proxy for protected technological advancement.
+
+We focus on answering three big picture questions:
+
+🔍 **RQ1:** How does AI patenting efficiency differ across R&D intensity groups?
+
+🏭 **RQ2:** Which sectors show the highest AI patenting efficiency?
+
+📈 **RQ3:** Does efficiency rise or fall as R&D intensity increases?
+
+Analyzing these questions is critical for understanding the "return on investment" (ROI) of innovation. By identifying which sectors or investment levels are most efficient, we can provide insights into the competitive landscape of the AI era.
+
+**Ethical Considerations**:
+Using patent data presents certain limitations. Patents often favor large corporations with extensive legal departments, which might overlook the contributions of open-source communities or smaller startups that do not prioritize intellectual property protection. Furthermore, our dataset primarily focuses on the "Top 2000" global investors, which potentially biases our findings toward established economic powers and ignores emerging markets.
+
+**Quick Summary**: This dashboard visualizes the "Efficiency" of AI innovation, defined as the number of AI patents produced per €1B of R&D spending.
+
+
+## Loading Libraries
+```{r}
+#| echo: false
+#| warning: false
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(stringr)
+library(stringdist)
+```
+
+## setup chunk
+```{r}
+theme_dark_custom <- function() {
+  theme_minimal(base_family = "sans") +
+    theme(
+      plot.background = element_rect(fill = "#1e1e1e", color = NA),
+      panel.background = element_rect(fill = "#1e1e1e", color = NA),
+      panel.grid.major = element_line(color = "#3a3a3a"),
+      panel.grid.minor = element_line(color = "#2a2a2a"),
+      text = element_text(color = "#E6E6E6"),
+      axis.text = element_text(color = "#D0D0D0"),
+      axis.title = element_text(color = "#E6E6E6"),
+      plot.title = element_text(color = "#FFFFFF", face = "bold"),
+      plot.subtitle = element_text(color = "#CCCCCC"),
+      legend.background = element_rect(fill = "#1e1e1e", color = NA),
+      legend.text = element_text(color = "#D0D0D0"),
+      legend.title = element_text(color = "#E6E6E6")
+    )
+}
+
+blue_palette <- colorRampPalette(c(
+  "#A7C7E7",
+  "#6FA8DC",
+  "#3C78D8",
+  "#1C4587" 
+))(11)
+
+pink_palette <- colorRampPalette(c(
+  "#F4C2C2",
+  "#E799B0",
+  "#C97FA0",
+  "#8E5572"
+))(11)
+
+```
+
+```{=Html}
+<style>
+:root {
+  --quarto-body-bg: #1e1e1e;
+  --quarto-body-color: #E6E6E6;
+  --quarto-primary: #6FA8DC;
+  --quarto-secondary: #E799B0;
+  --quarto-nav-bg: #1e1e1e;
+  --quarto-nav-color: #A7C7E7;
+  --quarto-nav-hover-color: #FFFFFF;
+}
+
+.quarto-code-block,
+div.sourceCode,
+pre.sourceCode,
+.cell-output {
+  background: #181818 !important;
+  border: 1px solid #4a4a4a !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+
+pre, code, pre code,
+.sourceCode, .sourceCode *,
+code span, pre span,
+.hljs, .hljs * {
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+  text-stroke: 0 !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+pre code,
+.sourceCode {
+  font-family: "Consolas", "Menlo", "Monaco", monospace !important;
+  font-size: 0.96em !important;
+  line-height: 1.55 !important;
+}
+
+.code-fold,
+.code-tools,
+.code-tools summary {
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  text-shadow: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.code-tools summary {
+  display: inline-block !important;
+  padding: 6px 14px !important;
+  margin-bottom: 8px !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  color: #FFFFFF !important;
+  background-color: #2c2c2c !important;
+  border: 1px solid #7EE7FF !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+}
+
+.code-tools summary:hover {
+  background-color: #3b3b3b !important;
+  border-color: #FFFFFF !important;
+  color: #FFFFFF !important;
+}
+
+.code-tools[open] summary {
+  background-color: #3a3a3a !important;
+}
+
+.code-tools summary::marker {
+  color: #7EE7FF !important;
+}
+
+</style>
+```
+
+# Data Context
+
+## Row {height=100%}
+
+### {width=50%}
+
+📊 Dataset 1: Private-Sector AI Indicators
+**Source:** [CSET, Georgetown University](https://eto.tech/dataset-docs/private-sector-ai-indicators/)
+
+The Center for Security and Emerging Technology (CSET) at Georgetown University produced this dataset to measure AI innovation through corporate research publications and patent filings. This sample includes 692 notable companies that are actively engaged in the AI ecosystem, with data points spanning from 2010 to 2024. By utilizing AI-specific topic classification methods, the researchers were able to filter general tech data into a refined set of AI indicators. However, a potential shortcoming of this sample is "visibility bias," as it primarily captures firms that actively publish or file patents, potentially overlooking smaller startups or companies that keep their AI research as trade secrets. This dataset allows us to see how companies in different countries prioritize AI research intensity relative to their size.
+
+
+```{r}
+core_df <- read.csv("https://raw.githubusercontent.com/Carolzhxxx/Carolzhxxx.github.io/main/core.csv")
+
+core_small <- core_df |>
+  select(Name, Country, Patents..AI.patents) |>
+  filter(!is.na(Name)) |>
+  mutate(
+    clean_name = str_to_upper(str_squish(Name)),
+    clean_name = str_remove_all(clean_name, "\\b(INC|CORP|LTD|LLC|PLC|CORPORATION|GROUP|HOLDINGS|CO|COMPANY)\\b"),
+    clean_name = str_squish(clean_name),
+    core_id = row_number()
+  )
+
+knitr::kable(head(core_small, 10))
+```
+### {width=50%}
+
+💰 Dataset 2: EU Industrial R&D Scoreboard
+**Source:** [European Commission, JRC](https://iri.jrc.ec.europa.eu/scoreboard/2025-eu-industrial-rd-investment-scoreboard)
+
+The second dataset is the 2025 edition of the EU Industrial R&D Investment Scoreboard, which reports the financial and innovation performance of the world’s top 2000 corporate R&D investors. The data are compiled by the European Commission’s Joint Research Centre (JRC) from audited annual financial reports, ensuring a high level of accuracy for total R&D expenditure in millions of euros. Since this dataset reflects fiscal year 2024 data, it provides the most current record of corporate investment behavior across various industrial sectors and geographic regions. A significant limitation of this sample is that it only represents the "population" of the largest global investors, meaning the R&D trends of small-to-medium enterprises (SMEs) are not fully reflected in our efficiency analysis. We use this data to provide the "input" side (spending) of our innovation efficiency equation.
+
+#### Dataset 2
+
+Source Link:
+EU Industrial R&D Investment Scoreboard – World 2000 Edition
+European Commission, Joint Research Centre (JRC)
+https://iri.jrc.ec.europa.eu/scoreboard/2025-eu-industrial-rd-investment-scoreboard
+
+
+#### Load Dataset 2
+
+```{r}
+library(readxl)
+url <- "https://raw.githubusercontent.com/Carolzhxxx/Carolzhxxx.github.io/main/SB2025_World2000_2.xlsx"
+dest_file <- "data_temp.xlsx"
+download.file(url, dest_file, mode = "wb")
+data <- read_excel(dest_file)
+scoreboard_df <- read_excel("SB2025_World2000_2.xlsx")
+
+score_small <- scoreboard_df |>
+  select(Company, `R&D (€million)`, `R&D intensity (%)`, `ICB3 short`) |>
+  filter(!is.na(Company)) |>
+  mutate(
+    clean_name = str_to_upper(str_squish(Company)),
+    clean_name = str_remove_all(clean_name, "\\b(INC|CORP|LTD|LLC|PLC|CORPORATION|GROUP|HOLDINGS|CO|COMPANY)\\b"),
+    clean_name = str_squish(clean_name)
+  )
+
+knitr::kable(head(score_small, 10))
+
+```
+
+# Joining the Data
+
+```{r}
+match_id <- amatch(score_small$clean_name, core_small$clean_name,
+                   method = "lv", maxDist = 3)
+
+joined_df <- score_small |>
+  mutate(core_id = match_id) |>
+  filter(!is.na(core_id)) |>
+  left_join(core_small, by = "core_id")
+
+knitr::kable(head(joined_df, 10))
+
+final_wrangle <- joined_df |>
+  mutate(
+    RD_Invest = as.numeric(`R&D (€million)`),
+    RD_Inten  = as.numeric(`R&D intensity (%)`),
+    AI_Patents = as.numeric(Patents..AI.patents),
+    Sector = `ICB3 short`
+  ) |>
+  filter(
+    !is.na(RD_Invest), !is.na(RD_Inten), !is.na(AI_Patents),
+    RD_Invest > 0,
+    RD_Inten > 0, RD_Inten <= 100,
+    AI_Patents >= 0
+  ) |>
+  mutate(
+    AI_Patent_Eff_1B = AI_Patents * 1000 / RD_Invest,
+    RD_Intensity_Group = case_when(
+      RD_Inten < 5 ~ "Low",
+      RD_Inten < 15 ~ "Medium",
+      TRUE ~ "High"
+    )
+  )
+```
+Justification for Data Selection:
+We selected datasets from CSET (Georgetown University) and the European Commission (JRC) due to their high institutional authority and rigorous data collection methodologies. The CSET dataset provides granular, AI-specific indicators that are not available in general financial databases, while the EU Scoreboard offers audited financial figures for the world’s top 2000 R&D investors. By combining these two, we ensure that our analysis is grounded in verified corporate spending and specialized innovation output, minimizing the risk of "greenwashing" or self-reported bias.
+
+Justification for Fuzzy Matching:
+A standard left_join requires an exact character-for-character match between company names. However, corporate names often vary across global databases due to inconsistent use of legal suffixes (e.g., "Apple Inc" vs. "Apple Corp" or "Microsoft" vs. "Microsoft Corporation"). To prevent significant data loss, we implement Fuzzy Matching using the stringdist package. By calculating the Levenshtein distance between strings, we can successfully link entities that are semantically identical but syntactically different, increasing our sample size and the robustness of our cross-dataset analysis.
+
+Justification for Data Standardization:
+Raw patent counts are heavily biased toward giant multinational corporations with massive R&D budgets. To ensure a "fair" comparison between industry titans and highly innovative mid-sized firms, we perform Standardization by calculating AI Patent Efficiency. By dividing the total AI patents by the R&D investment (normalized per €1 Billion), we create a relative performance metric. This allows us to identify "efficiency leaders"—companies that produce the highest innovation output per unit of financial input, regardless of their absolute size.
+
+
+### Combined Data Wrangling
+```{r}
+#| echo: false
+
+final_wrangle <- joined_df |>
+  mutate(
+    RD_Invest = as.numeric(`R&D (€million)`),
+    RD_Inten  = as.numeric(`R&D intensity (%)`),
+    AI_Patents = as.numeric(Patents..AI.patents),
+    Sector = `ICB3 short`
+  ) |>
+  filter(
+    !is.na(RD_Invest), !is.na(RD_Inten), !is.na(AI_Patents),
+    RD_Invest > 0,
+    RD_Inten > 0, RD_Inten <= 100,
+    AI_Patents >= 0
+  ) |>
+  mutate(
+    AI_Patent_Eff_1B = AI_Patents * 1000 / RD_Invest,
+    RD_Intensity_Group = case_when(
+      RD_Inten < 5 ~ "Low",
+      RD_Inten < 15 ~ "Medium",
+      TRUE ~ "High"
+    )
+  )
+```
+
+# Visualization Dashboard
+## Column {.tabset}
+### RQ1 — Boxplot: AI Patenting Efficiency by R&D Intensity
+```{r}
+#| echo: true
+#| title: "AI Patenting Efficiency by R&D Intensity Group"
+ggplot(final_wrangle |> filter(AI_Patent_Eff_1B > 0),
+       aes(x = RD_Intensity_Group, y = AI_Patent_Eff_1B)) +
+  geom_boxplot(
+    fill = "#F4C2C2",
+    color = "#8E5572",
+    linewidth = 0.6
+  ) +
+  scale_y_log10() +
+  labs(
+    title = "AI Patents per €1B R&D (log scale)",
+    x = "R&D Intensity Group",
+    y = "AI Patent Efficiency"
+  ) +
+  theme_dark_custom()
+
+```
+::: {.card}
+
+Interpretation — RQ1
+The distribution of AI patent efficiency varies widely across R&D intensity groups.
+
+The Medium intensity group shows the highest median efficiency and the least extreme outliers, suggesting that firms investing moderately in R&D tend to convert spending into AI patents more effectively.
+
+In contrast, High intensity firms exhibit greater variability and several low-efficiency outliers, indicating diminishing returns at very high R&D spending levels.
+
+This pattern supports the idea that efficiency does not scale linearly with investment.
+:::
+
+### RQ2 — Sector Ranking Bar Chart
+```{r}
+#| echo: true
+#| title: "Average AI Patent Efficiency by Sector"
+
+sector_summary <- final_wrangle |>
+  group_by(Sector) |>
+  summarize(
+    mean_eff = mean(AI_Patent_Eff_1B, na.rm = TRUE),
+    company_count = n()
+  ) |>
+  arrange(desc(mean_eff)) |>
+  mutate(Sector = factor(Sector, levels = Sector))
+
+ggplot(sector_summary,
+       aes(x = reorder(Sector, mean_eff), y = mean_eff, fill = Sector)) +
+  geom_col(alpha = 0.9) +
+  scale_fill_manual(values = blue_palette) +
+  geom_text(aes(label = round(mean_eff, 1)),
+            hjust = -0.2, size = 3.5, color = "#E6E6E6") +
+  coord_flip() +
+  labs(
+    title = "Average AI Patent Efficiency by Sector",
+    subtitle = "Higher = more AI patents per €1B R&D",
+    x = "Sector",
+    y = "Avg AI Patent Efficiency"
+  ) +
+  theme_dark_custom() +
+  theme(legend.position = "none")
+
+```
+::: {.card}
+### Interpretation — RQ2
+Sectors differ substantially in their ability to generate AI patents per €1B of R&D.  
+
+**Software & Computer Services** clearly dominate, reflecting the sector’s strong alignment with AI development and lower marginal costs of innovation.  
+
+Traditional manufacturing sectors—such as Automobiles or Industrial Engineering—show lower efficiency, likely due to higher capital requirements and longer development cycles.  
+
+The ranking highlights how sectoral characteristics shape innovation productivity.
+:::
+### RQ3 — Trend Line Across R&D Intensity
+```{r}
+#| echo: true
+#| title:  "Trend of AI Patent Efficiency Across R&D Intensity Levels"
+
+trend_df <- final_wrangle |>
+  group_by(RD_Intensity_Group) |>
+  summarize(mean_eff = mean(AI_Patent_Eff_1B, na.rm = TRUE))
+
+ggplot(trend_df, aes(x = RD_Intensity_Group, y = mean_eff, group = 1)) +
+  geom_line(color = "#6FA8DC", linewidth = 1.8) + 
+  geom_point(size = 4, color = "#1C4587") + 
+  labs(
+    title = "Trend: AI Patent Efficiency Across R&D Intensity Levels",
+    x = "R&D Intensity Group",
+    y = "Mean AI Patents per €1B R&D"
+  ) +
+  theme_dark_custom()
+
+```
+::: {.card}
+### Interpretation — RQ3 (Trend Line)
+The trend line reveals a non-linear relationship between R&D intensity and AI patent efficiency.  
+
+Efficiency peaks in the **Medium** group and declines in the **High** group, reinforcing the “efficiency paradox” observed in RQ1.  
+
+This suggests that beyond a certain threshold, additional R&D spending yields diminishing marginal returns in AI patent output.  
+
+The trend supports the hypothesis that optimal efficiency occurs at moderate investment levels.
+:::
+### RQ3 — Bar chart: AI Patent Efficiency by R&D Intensity Group
+```{r}
+#| echo: true
+#| title: "Average AI Patent Efficiency by R&D Intensity Group"
+
+trend_df <- final_wrangle |>
+  group_by(RD_Intensity_Group) |>
+  summarize(mean_eff = mean(AI_Patent_Eff_1B, na.rm = TRUE))
+
+ggplot(trend_df,
+       aes(x = RD_Intensity_Group, y = mean_eff, fill = RD_Intensity_Group)) +
+  geom_col(alpha = 0.9) +
+  scale_fill_manual(values = blue_palette[ c(3, 6, 9) ]) +
+  geom_text(aes(label = round(mean_eff, 1)),
+            vjust = -0.3, size = 3.5, color = "#E6E6E6") +
+  labs(
+    title = "Average AI Patent Efficiency by R&D Intensity Group",
+    x = "R&D Intensity Group",
+    y = "Mean AI Patents per €1B R&D"
+  ) +
+  theme_dark_custom() +
+  theme(legend.position = "none")
+
+```
+::: {.card}
+### Interpretation — RQ3 (Bar Chart)
+The bar chart confirms the trend line results:  
+
+**Medium-intensity firms** achieve the highest average AI patent efficiency, outperforming both Low and High groups.  
+
+The High group’s lower efficiency indicates that large R&D budgets do not guarantee proportional increases in AI innovation output.  
+
+This reinforces the idea that strategic allocation—not absolute spending—is key to maximizing innovation ROI.
+:::
+### Maps
+```{r}
+#| echo: true
+#| warning: false
+#| fig-cap: "Figure X. AI Patent Efficiency by Country"
+#| fig-alt: "A choropleth world map showing AI patent efficiency by country."
+#| fig-align: center
+
+library(plotly)
+library(dplyr)
+
+country_eff <- final_wrangle |>
+  group_by(Country) |>
+  summarize(mean_eff = mean(AI_Patent_Eff_1B, na.rm = TRUE))
+
+plot_ly(
+  country_eff,
+  type = "choropleth",
+  locations = ~Country,
+  locationmode = "country names",
+  z = ~mean_eff,
+  colorscale = list(
+    c(0, "#A7C7E7"),   # light blue
+    c(1, "#1C4587")    # deep blue
+  ),
+  marker = list(line = list(color = "#1e1e1e"))
+) |>
+  layout(
+    title = list(
+      text = "AI Patent Efficiency by Country",
+      font = list(color = "#E0E0E0")
+    ),
+    geo = list(
+      bgcolor = "#1e1e1e",
+      lakecolor = "#1e1e1e",
+      landcolor = "#2a2a2a",
+      showlakes = TRUE,
+      showland = TRUE,
+      projection = list(type = "natural earth")
+    ),
+    paper_bgcolor = "#1e1e1e",
+    plot_bgcolor = "#1e1e1e",
+    font = list(color = "#E0E0E0")
+  )
+```
+::: {.card}
+### Interpretation — Country Map
+The geographic distribution of AI patent efficiency shows strong regional clustering.  
+
+Countries with established innovation ecosystems—such as the United States, South Korea, and parts of Western Europe—exhibit higher efficiency levels.  
+
+Emerging economies show more variability, reflecting differences in national R&D infrastructure and patenting culture.  
+
+The map highlights how local innovation environments influence corporate R&D outcomes.
+:::
+# Conclusion
+
+## Row
+
+### Key Findings
+1. **Efficiency Paradox:** Higher R&D intensity does not linearly correlate with higher patent efficiency. Some "Medium" intensity firms show higher output per billion euros than "High" intensity ones.
+2. **Sector Dominance:** Software and Computer Services sectors exhibit the highest AI innovation density, while traditional manufacturing sectors lag behind in patents per R&D euro.
+3. **Regional Gaps:** The interactive map reveals a heavy concentration of efficiency in specific innovation hubs, suggesting that local ecosystems significantly impact R&D ROI.
+
+### Bias and Ethical Limitations
+* **Patent Bias:** Our analysis relies on patents as a proxy for innovation. This inherently favors large corporations with the legal resources to file, while potentially ignoring open-source contributions.
+* **Selection Bias:** By focusing on the "Top 2000" global investors, we exclude emerging startups and SMEs that may be more efficient but operate on smaller absolute budgets.
+* **Geographical Bias:** Data from emerging markets may be underrepresented due to different reporting standards in the EU Scoreboard.
+
+# Group Info
+
+## Row {height=40%}
+
+### {width=50%}
+
+::: {.card}
+::: {.card-header}
+👤 **Team Member: Duofei Cui**
+:::
+::: {.card-body}
+**Role:** Data Visualization & Lead Developer  
+**Contributions:** * Developed the custom `theme_dark_custom` and color palettes.
+* Implemented the interactive Plotly map and sector-specific bar charts.
+* Managed data joining logic using the `stringdist` fuzzy matching algorithm.
+
+**Contact:** [duofec@uw.edu](mailto:dcui@example.edu)
+:::
+:::
+
+### {width=50%}
+
+::: {.card}
+::: {.card-header}
+👤 **Team Member: Carol Zeng**
+:::
+::: {.card-body}
+**Role:** Data Research & Statistical Analysis  
+**Contributions:** * Sourced and cleaned datasets from CSET and the EU Industrial R&D Scoreboard.
+* Defined the research questions and R&D intensity grouping logic.
+* Conducted the trend analysis for AI Patent Efficiency (RQ3).
+
+**Contact:** [hxz63@uw.edu](mailto:czeng@example.edu)
+:::
+:::
+
+## Row {height=60%}
+
+### {width=60%}
+
+::: {.card}
+::: {.card-header}
+📊 **Project Overview**
+:::
+::: {.card-body}
+This dashboard is the final project for **INFO 201**. Our goal was to investigate the relationship between corporate R&D investment and AI patenting output. By merging global financial data with AI-specific patent metrics, we aim to identify which sectors and intensity levels are the most "efficient" at generating AI innovation.
+
+**Key Findings:**
+* High R&D intensity doesn't always guarantee higher patent efficiency.
+* Specific sectors like Software and Computer Services dominate the AI landscape.
+* Regional variations reflect different national innovation ecosystems.
+:::
+:::
+
+### {width=40%}
+
+::: {.card}
+::: {.card-header}
+🔗 **Resources & Links**
+:::
+::: {.card-body}
+* **GitHub Repository:** [View Source Code](https://github.com/Carolzhxxx/Carolzhxxx.github.io)
+* **Data Source 1:** [CSET Private-Sector AI Indicators](https://eto.tech/dataset-docs/private-sector-ai-indicators/)
+* **Data Source 2:** [EU Industrial R&D Investment Scoreboard](https://iri.jrc.ec.europa.eu/scoreboard/2025-eu-industrial-rd-investment-scoreboard)
+* **Tools Used:** R (dplyr, ggplot2, plotly, stringdist), Quarto Dashboards.
+
+---
+*Created in Winter 2025 for INFO 201.*
+:::
+:::
